@@ -1,6 +1,6 @@
-pragma solidity ^0.4.18;
+pragma solidity ^0.4.17;
 
-import './SmartToken.sol.sol';
+import './SmartToken.sol';
 import './SafeMath.sol';
 
 /**
@@ -16,7 +16,7 @@ contract Crowdsale {
 
   // The token being sold
   //MintableToken public token;
-    SmartToken public token;
+  SmartToken public token;
 
 
   // start and end timestamps where investments are allowed (both inclusive)
@@ -47,7 +47,7 @@ contract Crowdsale {
     require(_endTime >= _startTime);
     require(_rate > 0);
     require(_wallet != address(0));
-    require(_SmartToken != address(0)
+    //require(_SmartToken != address(0);
 
    // token = createTokenContract();
     token = SmartToken(_SmartToken);
@@ -123,6 +123,11 @@ contract Crowdsale {
     claimToken.transfer(_to, unSoldTokens);
   }
 
+
+  // total wei raised in the presale 
+  function totalWei() public constant returns(uint256) {
+    return weiRaised;
+  }
 
 
 }
