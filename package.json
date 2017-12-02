@@ -1,25 +1,35 @@
 {
-  "name": "gn-compass-token",
+  "name": "moneo_crowdsale",
   "version": "1.0.0",
-  "description": "",
-  "main": "truffle.js",
-  "directories": {
-    "test": "test"
+  "main": "index.js",
+  "license": "MIT",
+  "dependencies": {
+    "bignumber.js": "^4.1.0",
+    "bn.js": "^4.11.8",
+    "ethers": "^2.1.3",
+    "solhint": "^1.1.8",
+    "truffle": "^4.0.1",
+    "zeppelin-solidity": "^1.3.0"
   },
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "truffle test",
+    "build": "truffle compile",
+    "testrpc": "testrpc -l 90000000"
   },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/GNCompass/GN-Compass-Token.git"
-  },
-  "author": "",
-  "license": "ISC",
-  "bugs": {
-    "url": "https://github.com/GNCompass/GN-Compass-Token/issues"
-  },
-  "homepage": "https://github.com/GNCompass/GN-Compass-Token#readme",
-  "dependencies": {
-    "truffle": "^4.0.1"
+  "devDependencies": {
+    "babel-polyfill": "^6.23.0",
+    "babel-preset-es2015": "^6.18.0",
+    "babel-preset-stage-2": "^6.18.0",
+    "babel-preset-stage-3": "^6.17.0",
+    "babel-register": "^6.23.0",
+    "chai": "^4.1.2",
+    "chai-as-promised": "^7.1.1",
+    "chai-bignumber": "^2.0.0",
+    "coveralls": "^2.13.1",
+    "ethereumjs-testrpc": "^6.0.1",
+    "ethereumjs-util": "^5.1.2",
+    "mocha-lcov-reporter": "^1.3.0",
+    "solidity-coverage": "^0.4.2",
+    "truffle-hdwallet-provider": "0.0.3"
   }
 }
