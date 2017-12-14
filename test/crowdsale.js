@@ -196,6 +196,51 @@ contract('Crowdsale', function(accounts) {
       assert(tiersInitialized == true);
       
     })
+
+    //Addtional Test Cases - Lee 
+     it('should throw if from tier 1 is 0', async () => {
+
+      let discounts = [10, 20, 30];
+      let from = [ether(0), ether(200000), ether(300000)]
+      let to = [ether(199999), ether(299999), new BigNumber(2).pow(256).sub(1)]
+      let max = [ether(40000000), ether(30000000), ether(30000000)]
+      await crowdsale.initTiers(discounts, from, to, max, { from : OWNER })
+      .should.be.rejectedWith(EVMRevert)
+    })
+
+      it('should throw with same tier initialization', async () => {
+
+      let discounts = [10, 20, 30];
+      let from = [ether(100000), ether(100000), ether(300000)]
+      let to = [ether(199999), ether(199999), new BigNumber(2).pow(256).sub(1)]
+      let max = [ether(40000000), ether(30000000), ether(30000000)]
+      await crowdsale.initTiers(discounts, from, to, max, { from : OWNER })
+      .should.be.rejectedWith(EVMRevert)
+    })
+
+      it('should throw if max total more than 10000000', async () => {
+
+      let discounts = [10, 20, 30];
+      let from = [ether(100000), ether(100000), ether(300000)]
+      let to = [ether(199999), ether(299999), new BigNumber(2).pow(256).sub(1)]
+      let max = [ether(40000000), ether(40000000), ether(30000000)]
+      await crowdsale.initTiers(discounts, from, to, max, { from : OWNER })
+      .should.be.rejectedWith(EVMRevert)
+    })
+
+
+      it('should throw if max from is bigger than to in tier 2', async () => {
+
+      let discounts = [10, 20, 30];
+      let from = [ether(100000), ether(299999), ether(300000)]
+      let to = [ether(199999), ether(299998), new BigNumber(2).pow(256).sub(1)]
+      let max = [ether(40000000), ether(40000000), ether(30000000)]
+      await crowdsale.initTiers(discounts, from, to, max, { from : OWNER })
+      .should.be.rejectedWith(EVMRevert)
+    })
+
+
+
   })
 
 });
