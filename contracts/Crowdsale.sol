@@ -69,6 +69,7 @@ contract Crowdsale is Ownable {
       require(discount[i] > 0);
       require(to[i] > from[i]);
       require(max[i] > 0);
+      require(from[i] > 0);
       if(i>0) {
         require(from[i] > to[i-1]);
       }
