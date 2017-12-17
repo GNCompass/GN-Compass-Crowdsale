@@ -1,4 +1,5 @@
 var Crowdsale = artifacts.require("./Crowdsale.sol");
+var Token = artifacts.require("./SmartToken.sol")
 import {advanceBlock} from './helpers/advanceToBlock'
 import ether  from './helpers/ether';
 const EVMRevert = require('./helpers/EVMRevert.js')
@@ -24,6 +25,7 @@ contract('Crowdsale', function(accounts) {
     let TOKEN = accounts[9];
     let CAP = 10;
     let WALLET = accounts[8];
+    let MIN_WEI = ether(0.01);
 
     let STAGE = {
       Preparing: 0,
@@ -42,43 +44,43 @@ contract('Crowdsale', function(accounts) {
 
     it('should throw startTime is less than the current time', async () => {
       let BAD_START_TIME = latestTime() - 10;
-      await Crowdsale.new(BAD_START_TIME, DURATION, RATE, WALLET, TOKEN, CAP)
+      await Crowdsale.new(BAD_START_TIME, DURATION, RATE, WALLET, TOKEN, CAP, MIN_WEI)
       .should.be.rejectedWith(EVMRevert);
 
     })
-    it('should throw rate is less than 1 is less than the current time', async () => {
-      let BAD_RATE = 0;
-      await Crowdsale.new(START_TIME, DURATION, BAD_RATE, WALLET, TOKEN, CAP)
-      .should.be.rejectedWith(EVMRevert);
-    })
+    // it('should throw rate is less than 1 is less than the current time', async () => {
+    //   let BAD_RATE = 0;
+    //   await Crowdsale.new(START_TIME, DURATION, BAD_RATE, WALLET, TOKEN, CAP, MIN_WEI)
+    //   .should.be.rejectedWith(EVMRevert);
+    // })
 
     it('should throw if duration is less than 0', async () => {
       let BAD_DURATION = 0;
-      await Crowdsale.new(START_TIME, BAD_DURATION, RATE, WALLET, TOKEN, CAP)
+      await Crowdsale.new(START_TIME, BAD_DURATION, RATE, WALLET, TOKEN, CAP, MIN_WEI)
       .should.be.rejectedWith(EVMRevert);
     })
 
     it('should throw if WALLET is zero', async () => {
       let BAD_WALLET = '0x0000000000000000000000000000000000000000';
-      await Crowdsale.new(START_TIME, DURATION, RATE, BAD_WALLET, TOKEN, CAP)
+      await Crowdsale.new(START_TIME, DURATION, RATE, BAD_WALLET, TOKEN, CAP, MIN_WEI)
       .should.be.rejectedWith(EVMRevert);
     })
 
     it('should throw if TOKEN address zero', async () => {
       let BAD_TOKEN = '0x0000000000000000000000000000000000000000';
-      await Crowdsale.new(START_TIME, DURATION, RATE, WALLET, BAD_TOKEN, CAP)
+      await Crowdsale.new(START_TIME, DURATION, RATE, WALLET, BAD_TOKEN, CAP, MIN_WEI)
       .should.be.rejectedWith(EVMRevert);
     })
 
     it('should throw if CAP is zero', async () => {
       let BAD_CAP = '0x0000000000000000000000000000000000000000';
-      await Crowdsale.new(START_TIME, DURATION, RATE, WALLET, TOKEN, BAD_CAP)
+      await Crowdsale.new(START_TIME, DURATION, RATE, WALLET, TOKEN, BAD_CAP, MIN_WEI)
       .should.be.rejectedWith(EVMRevert);
     })
 
     it('should initalize all the variables with correct values', async() => {
 
-      let crowdsale = await Crowdsale.new(START_TIME, DURATION, RATE, WALLET, TOKEN, CAP)
+      let crowdsale = await Crowdsale.new(START_TIME, DURATION, RATE, WALLET, TOKEN, CAP, MIN_WEI)
       let startTime = await crowdsale.startTime();
       assert(startTime.toString() == START_TIME.toString());
       const expectedEndTime = START_TIME + duration.days(DURATION);
@@ -115,6 +117,7 @@ contract('Crowdsale', function(accounts) {
     let WALLET = accounts[8];
     let OWNER = accounts[0]
     let NON_OWNER = accounts[1]
+    let MIN_WEI = ether(0.01)
     let crowdsale;
     before(async function() {
       await advanceBlock()
@@ -123,7 +126,7 @@ contract('Crowdsale', function(accounts) {
     beforeEach(async () => {
       START_TIME = latestTime() + duration.weeks(1);
 
-      crowdsale = await Crowdsale.new(START_TIME, DURATION, RATE, WALLET, TOKEN, CAP)
+      crowdsale = await Crowdsale.new(START_TIME, DURATION, RATE, WALLET, TOKEN, CAP, MIN_WEI)
     })
     it('only owner can call initTiers', async() => {
         let discounts = [10, 20, 30];
@@ -194,8 +197,118 @@ contract('Crowdsale', function(accounts) {
 
       let tiersInitialized = await crowdsale.tiersInitialized();
       assert(tiersInitialized == true);
-      
+
     })
+  })
+
+  describe('Token sale', async () => {
+    let START_TIME;
+    let DURATION = 14;
+    let RATE = 20000;
+    let token;
+    let CAP = ether(30);
+    let WALLET = accounts[8];
+    let OWNER = accounts[0]
+    let NON_OWNER = accounts[1]
+    let MIN_WEI = ether(0.01);
+    let crowdsale;
+    before(async function() {
+      await advanceBlock()
+    })
+
+    beforeEach(async () => {
+      START_TIME = latestTime() + duration.weeks(1);
+      token = await Token.new("T", "T", 18, 1000000);
+      crowdsale = await Crowdsale.new(START_TIME, DURATION, RATE, WALLET, token.address, CAP, MIN_WEI)
+      let discounts = [10, 20, 30];
+      let from = [ether(100000), ether(200000), ether(300000)]
+      let to = [ether(199999), ether(299999), new BigNumber(2).pow(256).sub(1)]
+      let max = [ether(40000000), ether(30000000), ether(30000000)]
+      await crowdsale.initTiers(discounts, from, to, max, { from : OWNER })
+      await token.transfer(crowdsale.address, ether(1000000));
+      await increaseTimeTo(START_TIME + duration.days(1));
+    })
+
+    it('it should send 20000 tokens for 1 ETH', async() => {
+      await crowdsale.sendTransaction({ value : ether(1), from : NON_OWNER })
+      let balance = await token.balanceOf(NON_OWNER)
+      balance.should.be.bignumber.equal(ether(RATE));
+    })
+
+
+    it('it should throw if anything less than the total tokens is sent', async () => {
+      await crowdsale.sendTransaction({ value: ether(0.001), from : accounts[6] })
+      .should.be.rejectedWith(EVMRevert);
+    })
+
+    it('it should send 80000 tokens for 4 ETH', async () => {
+      await crowdsale.sendTransaction({ value : ether(4), from : accounts[4] })
+      let balance = await token.balanceOf(accounts[4])
+      balance.should.be.bignumber.equal(ether(80000));
+    })
+
+
+
+    it('it should send 110,000 tokens for 5 ETH', async () => {
+      let currentTier = await crowdsale.tiers(0);
+      let tokensRemaining = currentTier[3];
+      await crowdsale.sendTransaction({ value : ether(5), from : accounts[4] })
+      let balance = await token.balanceOf(accounts[4])
+      balance.should.be.bignumber.equal(ether(110000));
+      currentTier = await crowdsale.tiers(0);
+      let remainingAfter = currentTier[3]
+      let diff = tokensRemaining.sub(remainingAfter)
+      diff.should.be.bignumber.equal(ether(10000));
+
+    })
+
+
+    it('it should send 110220 tokens for 5.01 ETH', async () => {
+      // 5.01 * 20000 = 100200
+      // 100200 + 100200*10/100
+      let currentTier = await crowdsale.tiers(0);
+      let tokensRemaining = currentTier[3];
+      await crowdsale.sendTransaction({ value : ether(5.01), from : accounts[6] })
+      let balance = await token.balanceOf(accounts[6])
+      balance.should.be.bignumber.equal(ether(110220));
+      currentTier = await crowdsale.tiers(0);
+      let remainingAfter = currentTier[3];
+      let diff = tokensRemaining.sub(remainingAfter);
+      diff.should.be.bignumber.equal(ether(10020));
+    })
+
+    it('it should send 240,000 tokens for 10 ETH', async () => {
+      await crowdsale.sendTransaction({ value : ether(10), from : accounts[5] })
+      let balance = await token.balanceOf(accounts[5])
+      balance.should.be.bignumber.equal(ether(240000));
+    })
+
+    it('return the correct contribution', async () => {
+      await crowdsale.sendTransaction({ value : ether(0.2), from : accounts[5] })
+      let contribution = await crowdsale.contributions(accounts[5])
+      contribution.should.be.bignumber.equal(ether(0.2));
+    })
+
+    it('return the investor contribution', async () => {
+      await crowdsale.sendTransaction({ value : ether(0.02), from : accounts[5] })
+      let investor = await crowdsale.investors(0)
+      assert (investor == accounts[5]);
+    })
+
+    it('return the total wei raised so far', async () => {
+      await crowdsale.sendTransaction({ value : ether(0.02), from : accounts[5] })
+      let weiRaised = await crowdsale.weiRaised()
+      weiRaised.should.be.bignumber.equal(ether(0.02));
+    })
+
+    it('should forward the funds to the wallet', async () => {
+      let currentBalance = web3.eth.getBalance(WALLET);
+      await crowdsale.sendTransaction({ value : ether(0.02), from : accounts[5] })
+      let expectedBalance = currentBalance.add(ether(0.02));
+      let newBalance = web3.eth.getBalance(WALLET)
+      newBalance.should.be.bignumber.equal(expectedBalance);
+    })
+
   })
 
 });

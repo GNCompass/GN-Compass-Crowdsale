@@ -21,6 +21,7 @@ contract Crowdsale is Ownable {
 
   // how many token units a buyer gets per wei
   uint256 public rate;
+  uint256 public minWei;
 
   // amount of raised money in wei
   uint256 public weiRaised;
@@ -43,7 +44,7 @@ contract Crowdsale is Ownable {
   bool public tiersInitialized = false;
 
 
-  function Crowdsale(uint256 _startTime, uint8 _duration, uint256 _rate, address _wallet, address _SmartToken, uint256 _cap) public {
+  function Crowdsale(uint256 _startTime, uint8 _duration, uint256 _rate, address _wallet, address _SmartToken, uint256 _cap, uint256 _minWei) public {
     require(_startTime >= now);
     require(_rate > 0);
     require(_duration > 0);
@@ -58,9 +59,10 @@ contract Crowdsale is Ownable {
     rate = _rate;
     wallet = _wallet;
     cap = _cap;
+    minWei = _minWei;
   }
 
-  function initTiers(uint256[] discount, uint256[] from, uint256[] to, uint256[] max) public onlyOwner {
+  function initTiers(uint256[] discount, uint256[] from, uint256[] to, uint256[] max) public inStage(Stage.Preparing) onlyOwner {
     require(discount.length == MAX_TIERS && from.length == MAX_TIERS && to.length == MAX_TIERS && max.length == MAX_TIERS);
 
     for(uint8 i=0;i<MAX_TIERS; i++) {
@@ -83,6 +85,7 @@ contract Crowdsale is Ownable {
 
     tiersInitialized = true;
   }
+
   // fallback function can be used to buy tokens
   function () public payable {
     buyTokens(msg.sender);
@@ -94,10 +97,14 @@ contract Crowdsale is Ownable {
     if(hasEnded()) return Stage.Success;
   }
 
+  modifier inStage(Stage stage) {
+    require(getStage() == stage);
+    _;
+  }
 
 
   // low level token purchase function
-  function buyTokens(address beneficiary) internal  {
+  function buyTokens(address beneficiary) internal  inStage(Stage.Presale) {
     require(beneficiary != address(0));
     require(validPurchase());
     uint256 weiAmount = msg.value;
@@ -107,7 +114,7 @@ contract Crowdsale is Ownable {
     }
 
     uint256 tokens = weiAmount.mul(rate);
-    // Lee - Review this
+
     uint discountTokens = calculateDiscount(tokens);
 
     if(discountTokens > 0) {
@@ -140,9 +147,9 @@ contract Crowdsale is Ownable {
   // @return true if the transaction can buy tokens
   function validPurchase() internal view returns (bool) {
     bool withinPeriod = now >= startTime && now <= endTime;
-    bool nonZeroPurchase = msg.value != 0;
+    bool minimumPurchase = msg.value >= minWei;
     bool withinCap = weiRaised < cap;
-    return withinPeriod && nonZeroPurchase && withinCap;
+    return withinPeriod && minimumPurchase && withinCap;
   }
 
   // @return true if crowdsale event has ended
@@ -156,11 +163,13 @@ contract Crowdsale is Ownable {
 
 
   //reclaim unsold tokens after the crowdsale is over
-  function reclaimTokens(address _token, address _to) public {
+  function reclaimTokens(address _token, address _to) onlyOwner public {
+    require(hasEnded());
     SmartToken claimToken = SmartToken(_token);
     uint256 unSoldTokens = claimToken.balanceOf(this);
     claimToken.transfer(_to, unSoldTokens);
   }
+
 
   // review this function
 
@@ -169,6 +178,7 @@ contract Crowdsale is Ownable {
       return 0;
     }
     uint256 extraTokens = 0;
+
     for(uint8 i=0;i<tiers.length;i++) {
       Tier _tier = tiers[i];
       if(tokens >= _tier.from && tokens <= _tier.to && _tier.remaining > 0) {
@@ -182,6 +192,7 @@ contract Crowdsale is Ownable {
 
         } else {
           _tier.remaining = _tier.remaining.sub(extraTokens);
+          tiers[i] = _tier;
           return extraTokens;
         }
       }
