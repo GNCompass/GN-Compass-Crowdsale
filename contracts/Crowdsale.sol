@@ -19,6 +19,8 @@ contract Crowdsale is Ownable {
   uint256 public endTime;
   address public wallet;
 
+  address public altcoinAddress;
+
   // how many token units a buyer gets per wei
   uint256 public rate;
   uint256 public minWei;
@@ -62,6 +64,22 @@ contract Crowdsale is Ownable {
     minWei = _minWei;
   }
 
+
+
+
+  function buyTokensForAltCoins(address buyer, uint256 value) public {
+    require(tiersInitialized);
+    require(msg.sender == owner || msg.sender == altcoinAddress);
+    buyTokens(buyer, value);
+  }
+
+
+  function setAltcoinAddress(address newAddress) public onlyOwner {
+    require(newAddress != address(0));
+    altcoinAddress = newAddress;
+
+  }
+
   function initTiers(uint256[] discount, uint256[] from, uint256[] to, uint256[] max) public inStage(Stage.Preparing) onlyOwner {
     require(discount.length == MAX_TIERS && from.length == MAX_TIERS && to.length == MAX_TIERS && max.length == MAX_TIERS);
 
@@ -88,11 +106,11 @@ contract Crowdsale is Ownable {
   }
 
   // fallback function can be used to buy tokens
-  function () public payable {
-    buyTokens(msg.sender);
+  function () public inStage(Stage.Presale) payable {
+    buyTokens(msg.sender, msg.value);
   }
 
-  function getStage() constant returns(Stage) {
+  function getStage() constant public returns(Stage) {
     if(!tiersInitialized || !hasStarted()) return Stage.Preparing;
     if(!hasEnded()) return Stage.Presale;
     if(hasEnded()) return Stage.Success;
@@ -105,10 +123,10 @@ contract Crowdsale is Ownable {
 
 
   // low level token purchase function
-  function buyTokens(address beneficiary) internal  inStage(Stage.Presale) {
+  function buyTokens(address beneficiary, uint256 value) internal {
     require(beneficiary != address(0));
-    require(validPurchase());
-    uint256 weiAmount = msg.value;
+    require(validPurchase(value));
+    uint256 weiAmount = value;
 
     if(weiRaised.add(weiAmount) >= cap) {
       weiAmount = cap.sub(weiRaised);
@@ -131,12 +149,13 @@ contract Crowdsale is Ownable {
     contributions[beneficiary] = contributions[beneficiary].add(weiRaised);
     token.transfer(beneficiary, tokens);
 
-      if(msg.value.sub(weiAmount) > 0) {
-      msg.sender.transfer(msg.value.sub(weiAmount));
+    if(msg.value > 0 && value.sub(weiAmount) > 0) {
+      msg.sender.transfer(value.sub(weiAmount));
     }
 
-    forwardFunds(weiAmount);
-
+    if(msg.value > 0) {
+      forwardFunds(weiAmount);
+    }
   }
 
   // send ether to the fund collection wallet
@@ -146,11 +165,10 @@ contract Crowdsale is Ownable {
   }
 
   // @return true if the transaction can buy tokens
-  function validPurchase() internal view returns (bool) {
-    bool withinPeriod = now >= startTime && now <= endTime;
-    bool minimumPurchase = msg.value >= minWei;
+  function validPurchase(uint256 value) internal view returns (bool) {
+    bool minimumPurchase = value >= minWei;
     bool withinCap = weiRaised < cap;
-    return withinPeriod && minimumPurchase && withinCap;
+    return minimumPurchase && withinCap;
   }
 
   // @return true if crowdsale event has ended
@@ -163,7 +181,7 @@ contract Crowdsale is Ownable {
   }
 
 
-  //reclaim unsold tokens after the crowdsale is over
+  // reclaim unsold tokens after the crowdsale is over
   function reclaimTokens(address _token, address _to) onlyOwner public {
     require(hasEnded());
     SmartToken claimToken = SmartToken(_token);
